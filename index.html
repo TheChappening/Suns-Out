@@ -475,21 +475,40 @@
         @media (max-width: 480px) {
             header {
                 height: auto;
-                padding: 10px 16px;
-                justify-content: flex-start;
+                padding: 14px 16px;
+                align-items: center;
             }
+            /* Dissolve logo-left so its children become direct grid items */
             .logo {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 2px;
+                display: grid;
+                grid-template-columns: 1fr auto;
+                grid-template-rows: auto auto;
+                column-gap: 14px;
+                align-items: center;
+                width: 100%;
             }
-            .logo-left { align-items: flex-start; }
-            .logo-title { font-size: 26px; }
-            .logo-sub { display: none; }
+            .logo-left {
+                display: contents;
+            }
+            .logo-title {
+                grid-column: 1;
+                grid-row: 1;
+                font-size: 26px;
+            }
             .logo-tagline {
                 display: block;
-                font-size: 16px;
-                padding-top: 0;
+                grid-column: 1;
+                grid-row: 2;
+                font-size: 15px;
+                padding-top: 1px;
+            }
+            .logo-sub {
+                display: flex;
+                align-items: center;
+                grid-column: 2;
+                grid-row: 1 / 3;
+                font-size: 10px;
+                text-align: right;
             }
             .header-right { display: none; }
 
