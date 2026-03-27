@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suns Out — Toronto Patio Finder</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Pacifico&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --teal:       #80BFBF;
+            --teal-dark:  #5A9898;
+            --teal-light: #A8D4D4;
+            --cream:      #F2E8D5;
+            --cream-dark: #D8CCBA;
+            --rust:       #C84830;
+            --rust-light: #D95C3A;
+            --brown:      #3D2010;
+            --mid-brown:  #7A5040;
+        }
+
+        body {
+            font-family: 'Libre Baskerville', serif;
+            background: var(--teal);
+            color: var(--brown);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── HEADER ──────────────────────────────────────────────────── */
+        header {
+            background: var(--cream);
+            border-bottom: 2px solid var(--rust);
+            padding: 0 28px;
+            height: 82px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1000;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .logo-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .logo-title {
+            font-family: 'Oswald', sans-serif;
+            font-size: 30px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            color: var(--rust);
+            text-transform: uppercase;
+            line-height: 1;
+        }
+
+        .logo-sub {
+            font-family: 'Oswald', sans-serif;
+            font-size: 10px;
+            letter-spacing: 0.25em;
+            color: var(--mid-brown);
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .logo-tagline {
+            font-family: 'Pacifico', cursive;
+            font-size: 22px;
+            color: var(--rust);
+            line-height: 1;
+            padding-top: 4px;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+
+        .time-display {
+            font-family: 'Oswald', sans-serif;
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            color: var(--rust);
+            line-height: 1;
+        }
+
+        .sun-status-line {
+            font-family: 'Oswald', sans-serif;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--mid-brown);
+        }
+
+        /* Checkered stripe */
+        .header-stripe {
+            height: 10px;
+            flex-shrink: 0;
+            background: repeating-linear-gradient(
+                90deg,
+                var(--rust)  0px, var(--rust)  10px,
+                var(--cream) 10px, var(--cream) 20px
+            );
+            position: relative;
+            z-index: 1000;
+        }
+
+        /* ── MAP ─────────────────────────────────────────────────────── */
+        #map {
+            flex: 1;
+            position: relative;
+        }
+
+        .leaflet-tile-pane {
+            filter: saturate(55%) hue-rotate(155deg) brightness(1.05);
+        }
+
+        .leaflet-control-zoom a {
+            background: var(--cream) !important;
+            color: var(--rust) !important;
+            border-color: var(--rust) !important;
+            font-family: 'Oswald', sans-serif !important;
+            font-weight: 700 !important;
+        }
+        .leaflet-control-zoom a:hover {
+            background: var(--rust) !important;
+            color: var(--cream) !important;
+        }
+        .leaflet-control-attribution {
+            background: rgba(242, 232, 213, 0.88) !important;
+            color: var(--mid-brown) !important;
+            font-size: 10px !important;
+        }
+        .leaflet-control-attribution a { color: var(--rust) !important; }
+
+        /* ── MAP LOADING ─────────────────────────────────────────────── */
+        #map-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            background: var(--cream);
+            border: 2px solid var(--rust);
+            border-radius: 3px;
+            box-shadow: 0 4px 20px rgba(61,32,16,0.28);
+            text-align: center;
+            overflow: hidden;
+        }
+        .map-loading-stripe {
+            height: 10px;
+            background: repeating-linear-gradient(
+                90deg,
+                var(--rust)  0px, var(--rust)  10px,
+                var(--cream) 10px, var(--cream) 20px
+            );
+        }
+        .map-loading-body {
+            padding: 18px 28px 20px;
+        }
+        .map-loading-text {
+            font-family: 'Oswald', sans-serif;
+            font-size: 12px;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--rust);
+            margin-bottom: 12px;
+        }
+        .map-loading-dots {
+            display: flex;
+            justify-content: center;
+            gap: 7px;
+        }
+        .map-loading-dots span {
+            display: block;
+            width: 7px;
+            height: 7px;
+            background: var(--rust);
+            border-radius: 50%;
+            animation: dotPulse 1.2s ease-in-out infinite;
+        }
+        .map-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .map-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dotPulse {
+            0%, 80%, 100% { opacity: 0.25; transform: scale(0.75); }
+            40%            { opacity: 1;    transform: scale(1);    }
+        }
+
+        .leaflet-locate-btn {
+            font-size: 16px !important;
+            line-height: 26px !important;
+            text-align: center;
+        }
+
+        /* ── USER LOCATION DOT ───────────────────────────────────────── */
+        .user-loc-dot {
+            width: 14px;
+            height: 14px;
+            background: var(--teal-dark);
+            border: 2.5px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            animation: locPulse 2s ease-out infinite;
+        }
+        @keyframes locPulse {
+            0%   { box-shadow: 0 0 0 0   rgba(90,152,152,0.6); }
+            70%  { box-shadow: 0 0 0 10px rgba(90,152,152,0);  }
+            100% { box-shadow: 0 0 0 0   rgba(90,152,152,0);   }
+        }
+
+        /* ── MARKERS ─────────────────────────────────────────────────── */
+        .patio-icon-wrapper {
+            overflow: visible !important;
+            background: none !important;
+            border: none !important;
+        }
+
+        /* Anchor dot on map */
+        .patio-dot {
+            width: 26px;
+            height: 26px;
+            background: var(--cream);
+            border: 2px solid var(--rust);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(61,32,16,0.25);
+            transition: background 0.15s;
+        }
+        .patio-dot:hover { background: var(--teal-light); }
+
+        /* Floating label layer */
+        #label-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 500;
+            overflow: hidden;
+        }
+        #leader-svg {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 499;
+            overflow: hidden;
+        }
+        .patio-badge {
+            position: absolute;
+            white-space: nowrap;
+            background: var(--cream);
+            border: 2px solid var(--rust);
+            border-radius: 3px;
+            padding: 4px 9px 4px 7px;
+            font-family: 'Oswald', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--rust);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            box-shadow: 0 2px 8px rgba(61,32,16,0.22);
+            pointer-events: auto;
+            user-select: none;
+            transition: background 0.15s, color 0.15s;
+        }
+        .patio-badge:hover {
+            background: var(--rust);
+            color: var(--cream);
+        }
+        .badge-icon {
+            font-size: 15px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        /* ── EXPANDED MARKER CARD ────────────────────────────────────── */
+        .marker-card {
+            position: absolute;
+            bottom: 12px;
+            left: 0;
+            transform: translateX(-50%);
+            width: 280px;
+            background: var(--cream);
+            border: 2px solid var(--rust);
+            border-radius: 3px;
+            box-shadow: 0 4px 20px rgba(61, 32, 16, 0.35);
+            cursor: default;
+            /* Arrow */
+        }
+
+        .marker-card::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: var(--rust);
+        }
+
+        /* Checkered top accent */
+        .marker-card::before {
+            content: '';
+            display: block;
+            height: 10px;
+            background: repeating-linear-gradient(
+                90deg,
+                var(--rust)  0px, var(--rust)  10px,
+                var(--cream) 10px, var(--cream) 20px
+            );
+            border-radius: 1px 1px 0 0;
+        }
+
+        .card-inner {
+            padding: 12px 14px 14px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 3px;
+        }
+
+        .card-name {
+            font-family: 'Oswald', sans-serif;
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--rust);
+            line-height: 1.2;
+            flex: 1;
+        }
+
+        .card-close {
+            flex-shrink: 0;
+            background: none;
+            border: 1.5px solid var(--rust);
+            color: var(--rust);
+            font-family: 'Oswald', sans-serif;
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            padding: 3px 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+            border-radius: 2px;
+            transition: all 0.15s;
+        }
+
+        .card-close:hover {
+            background: var(--rust);
+            color: var(--cream);
+        }
+
+        .card-address {
+            font-size: 11px;
+            color: var(--mid-brown);
+            font-style: italic;
+            margin-bottom: 12px;
+        }
+
+        .card-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--cream-dark);
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .meta-label {
+            font-family: 'Oswald', sans-serif;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--mid-brown);
+        }
+
+        .meta-value {
+            font-family: 'Oswald', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--rust);
+        }
+
+        .card-desc {
+            font-size: 11px;
+            color: var(--mid-brown);
+            line-height: 1.6;
+            font-style: italic;
+        }
+
+        /* ── PATIO SHADE VIEW ────────────────────────────────────────── */
+        .shade-wrap {
+            margin: 8px 0;
+            min-height: 36px;
+        }
+
+        .shade-loading {
+            font-family: 'Oswald', sans-serif;
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--mid-brown);
+            padding: 8px 0;
+        }
+
+        .shade-visual {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .shade-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 6px;
+        }
+
+        .shade-status {
+            font-family: 'Oswald', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--rust);
+            line-height: 1;
+        }
+
+        .shade-pct {
+            font-family: 'Oswald', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #000;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">
+        <div class="logo-left">
+            <div class="logo-title">SUN'S OUT</div>
+            <div class="logo-sub">Toronto Patio Finder</div>
+        </div>
+        <div class="logo-tagline">Soak it all up.</div>
+    </div>
+    <div class="header-right">
+        <div class="time-display" id="time-display">—:——</div>
+        <div class="sun-status-line" id="sun-status">——</div>
+    </div>
+</header>
+<div class="header-stripe"></div>
+
+<div id="map">
+    <div id="map-loading">
+        <div class="map-loading-stripe"></div>
+        <div class="map-loading-body">
+            <div class="map-loading-text">Finding patios near you…</div>
+            <div class="map-loading-dots">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── DEBUG TIME OVERRIDE ───────────────────────────────────────────────────────
+// Set to null for real time, or a Date object to simulate a specific time.
+// e.g. new Date().setHours(15, 45, 0, 0) simulates 3:45 PM today.
+const DEBUG_TIME = (() => { const d = new Date(); d.setHours(15, 45, 0, 0); return d; })();
+function getSimTime() { return DEBUG_TIME || new Date(); }
+
+// ── PATIO DATA ────────────────────────────────────────────────────────────────
+let patios = [
+    {
+        name: "The Drake Hotel",
+        address: "1150 Queen St W",
+        lat: 43.6431, lng: -79.4264,
+        facing: 180,
+        description: "Legendary Queen West institution. The back patio is a scene."
+    },
+    {
+        name: "Handlebar",
+        address: "159 Augusta Ave",
+        lat: 43.6527, lng: -79.4017,
+        facing: 90,
+        description: "Kensington Market favourite. Lively back patio, great people watching."
+    },
+    {
+        name: "The Ossington",
+        address: "61 Ossington Ave",
+        lat: 43.6478, lng: -79.4269,
+        facing: 270,
+        description: "Ossington strip staple. West-facing patio catches late afternoon sun."
+    },
+    {
+        name: "Birreria Volo",
+        address: "612 College St",
+        lat: 43.6554, lng: -79.4081,
+        facing: 180,
+        description: "College Street craft beer institution. South-facing patio, excellent tap list."
+    },
+    {
+        name: "Communist's Daughter",
+        address: "1149 Dundas St W",
+        lat: 43.6513, lng: -79.4270,
+        facing: 180,
+        description: "Small, beloved neighbourhood bar. Tiny but sunny south-facing patio."
+    },
+    {
+        name: "The Monarch Tavern",
+        address: "12 Clinton St",
+        lat: 43.6563, lng: -79.4117,
+        facing: 90,
+        description: "Historic Clinton St tavern. Enclosed back patio, cozy and shaded."
+    },
+    {
+        name: "The Caledonian",
+        address: "856 College St",
+        lat: 43.6548, lng: -79.4202,
+        facing: 180,
+        description: "Solid College St pub. Good street-facing patio for watching the world go by."
+    },
+    {
+        name: "Wrongbar",
+        address: "1279 Queen St W",
+        lat: 43.6417, lng: -79.4335,
+        facing: 180,
+        description: "Parkdale dive bar. Unpretentious patio, zero attitude."
+    },
+    {
+        name: "The Dakota Tavern",
+        address: "249 Ossington Ave",
+        lat: 43.6488, lng: -79.4259,
+        facing: 90,
+        description: "Honky-tonk bar on Ossington. Small patio out front."
+    },
+    {
+        name: "Bar Raval",
+        address: "505 College St",
+        lat: 43.6554, lng: -79.4126,
+        facing: 180,
+        description: "Beautiful Gaudi-esque interior. Modest patio but prime College St location."
+    }
+];
+
+// ── WEATHER STATE ─────────────────────────────────────────────────────────────
+const weather = { cloudCover: 0, isRaining: false };
+
+// ── SUN CALCULATIONS ──────────────────────────────────────────────────────────
+function getSunInfo(lat, lng, facingDeg) {
+    const now = getSimTime();
+    const pos = SunCalc.getPosition(now, lat, lng);
+    const times = SunCalc.getTimes(now, lat, lng);
+
+    if (pos.altitude <= 0.01) {
+        return { score: 0, altitude: 0, azimuthDeg: null, times };
+    }
+
+    const altScore = Math.sin(pos.altitude);
+    const sunCompass = ((pos.azimuth * 180 / Math.PI) + 180 + 360) % 360;
+
+    let diff = Math.abs(sunCompass - facingDeg);
+    if (diff > 180) diff = 360 - diff;
+    const dirScore = Math.max(0, Math.cos(diff * Math.PI / 180));
+
+    const score = Math.round((altScore * 0.55 + dirScore * altScore * 0.45) * 100);
+    const altDeg = Math.round(pos.altitude * 180 / Math.PI);
+
+    return { score, altitude: altDeg, azimuthDeg: sunCompass, times };
+}
+
+function compassLabel(deg) {
+    const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+    return dirs[Math.round(deg / 22.5) % 16];
+}
+
+function conditionIcon(score, isDay) {
+    if (!isDay) return '🌙';
+    if (weather.isRaining)         return '🌧️';
+    if (weather.cloudCover >= 75)  return '☁️';
+    if (score < 15)  return '☁️';
+    if (score < 40)  return '⛅';
+    if (score < 70)  return '🌤️';
+    return '☀️';
+}
+
+function fmtTime(date) {
+    return date.toLocaleTimeString('en-CA', {
+        hour: '2-digit', minute: '2-digit', hour12: false,
+        timeZone: 'America/Toronto'
+    });
+}
+
+// ── MAP INIT ──────────────────────────────────────────────────────────────────
+const map = L.map('map', {
+    center: [43.651, -79.421],
+    zoom: 14,
+    zoomControl: true
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &nbsp;©&nbsp;<a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19
+}).addTo(map);
+
+// ── USER LOCATION ─────────────────────────────────────────────────────────────
+let userLocation  = null;
+let userLocMarker = null;
+
+function setUserLocationMarker(lat, lng) {
+    userLocation = { lat, lng };
+    if (userLocMarker) map.removeLayer(userLocMarker);
+    userLocMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            html: '<div class="user-loc-dot"></div>',
+            className: '',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        }),
+        zIndexOffset: 1000
+    }).addTo(map);
+}
+
+// Locate-me button (sits below zoom controls)
+const LocateControl = L.Control.extend({
+    onAdd() {
+        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        const btn = L.DomUtil.create('a', 'leaflet-locate-btn', div);
+        btn.innerHTML = '⌖';
+        btn.href = '#';
+        btn.title = 'Centre on my location';
+        L.DomEvent.disableClickPropagation(btn);
+        btn.addEventListener('click', e => {
+            e.preventDefault();
+            if (userLocation) map.panTo([userLocation.lat, userLocation.lng], { animate: true });
+        });
+        return div;
+    }
+});
+new LocateControl({ position: 'topleft' }).addTo(map);
+
+// ── MARKERS ───────────────────────────────────────────────────────────────────
+const leafletMarkers = {};
+let activePatio = null;
+
+function smallIcon(patio) {
+    const info = getSunInfo(patio.lat, patio.lng, patio.facing);
+    const isDay = SunCalc.getPosition(getSimTime(), patio.lat, patio.lng).altitude > 0.01;
+    const html = `
+        <div class="marker-badge">
+            <span class="badge-icon">${conditionIcon(info.score, isDay)}</span>
+            ${patio.name}
+        </div>`;
+    return L.divIcon({ html, className: 'patio-icon-wrapper', iconSize: [0,0], iconAnchor: [0,0] });
+}
+
+function expandedIcon(patio) {
+    const info = getSunInfo(patio.lat, patio.lng, patio.facing);
+    const isDay = SunCalc.getPosition(getSimTime(), patio.lat, patio.lng).altitude > 0.01;
+    const icon = conditionIcon(info.score, isDay);
+    const html = `
+        <div class="marker-card">
+            <div class="card-inner">
+                <div class="card-header">
+                    <div class="card-name"><span style="margin-right:6px">${icon}</span>${patio.name}</div>
+                    <button class="card-close" onclick="closeCard(event)">✕ Close</button>
+                </div>
+                <div class="card-address">${patio.address}</div>
+                <div class="shade-wrap" id="shade-wrap-${patio.name.replace(/\W+/g,'-')}">
+                    <div class="shade-loading">Analyzing shade…</div>
+                </div>
+                <div class="card-meta">
+                    <div class="meta-item">
+                        <div class="meta-label">Sun Direction</div>
+                        <div class="meta-value">${info.azimuthDeg !== null ? compassLabel(info.azimuthDeg) : '—'}</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Sunset</div>
+                        <div class="meta-value">${fmtTime(info.times.sunset)}</div>
+                    </div>
+                </div>
+                <div class="card-desc">${patio.description}</div>
+            </div>
+        </div>`;
+    return L.divIcon({ html, className: 'patio-icon-wrapper', iconSize: [0,0], iconAnchor: [0,0] });
+}
+
+function closeCard(e) {
+    if (e) e.stopPropagation();
+    if (!activePatio) return;
+    leafletMarkers[activePatio.name].setIcon(smallIcon(activePatio));
+    activePatio = null;
+}
+
+function addMarkers() {
+    patios.forEach(patio => {
+        const m = L.marker([patio.lat, patio.lng], { icon: smallIcon(patio) })
+            .addTo(map)
+            .on('click', () => {
+                if (activePatio && activePatio.name !== patio.name) closeCard();
+                activePatio = patio;
+                map.panTo([patio.lat, patio.lng], { animate: true });
+                leafletMarkers[patio.name].setIcon(expandedIcon(patio));
+                setTimeout(() => analyzeShade(patio), 50);
+            });
+        leafletMarkers[patio.name] = m;
+    });
+}
+
+// ── LOCATION + DATA INIT ──────────────────────────────────────────────────────
+
+function getUserLocation() {
+    return new Promise(resolve => {
+        if (!navigator.geolocation) { resolve({ lat: 43.651, lng: -79.421 }); return; }
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const lat = pos.coords.latitude, lng = pos.coords.longitude;
+                setUserLocationMarker(lat, lng);
+                resolve({ lat, lng });
+            },
+            () => resolve({ lat: 43.651, lng: -79.421 }),
+            { timeout: 6000 }
+        );
+    });
+}
+
+async function fetchPatiosNearby(lat, lng) {
+    const query = `[out:json][timeout:20];(
+        node["amenity"~"^(bar|pub)$"]["outdoor_seating"="yes"](around:2000,${lat},${lng});
+        way["amenity"~"^(bar|pub)$"]["outdoor_seating"="yes"](around:2000,${lat},${lng});
+        node["amenity"="restaurant"]["outdoor_seating"="yes"](around:2000,${lat},${lng});
+        way["amenity"="restaurant"]["outdoor_seating"="yes"](around:2000,${lat},${lng});
+    );out center;`;
+    const url = `https://overpass.kumi.systems/api/interpreter?data=${encodeURIComponent(query)}`;
+    try {
+        const res  = await fetch(url);
+        const data = await res.json();
+        const results = data.elements
+            .filter(el => el.tags && el.tags.name)
+            .map(el => {
+                const elLat = el.lat ?? el.center?.lat;
+                const elLng = el.lon ?? el.center?.lon;
+                if (!elLat || !elLng) return null;
+                const t = el.tags;
+                const addr = [t['addr:housenumber'], t['addr:street']].filter(Boolean).join(' ')
+                          || t['addr:place'] || '';
+                return { name: t.name, address: addr, lat: elLat, lng: elLng, facing: 180, description: '' };
+            })
+            .filter(Boolean);
+        if (results.length > 0) patios = results;
+    } catch(e) { /* keep hardcoded fallback */ }
+}
+
+async function fetchWeather(lat, lng) {
+    try {
+        const url  = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=cloud_cover,precipitation&timezone=America%2FToronto&forecast_days=1`;
+        const res  = await fetch(url);
+        const data = await res.json();
+        const hour = getSimTime().getHours();
+        weather.cloudCover = data.hourly.cloud_cover[hour]  ?? 0;
+        weather.isRaining  = (data.hourly.precipitation[hour] ?? 0) > 0;
+    } catch(e) { /* keep defaults */ }
+}
+
+function clearMarkers() {
+    if (activePatio) activePatio = null;
+    Object.values(leafletMarkers).forEach(m => map.removeLayer(m));
+    Object.keys(leafletMarkers).forEach(k => delete leafletMarkers[k]);
+}
+
+async function init() {
+    const loc = await getUserLocation();
+    map.panTo([loc.lat, loc.lng]);
+
+    await Promise.all([
+        fetchPatiosNearby(loc.lat, loc.lng),
+        fetchWeather(loc.lat, loc.lng)
+    ]);
+
+    document.getElementById('map-loading').style.display = 'none';
+    addMarkers();
+}
+
+init();
+
+// ── CLOCK & HEADER STATUS ─────────────────────────────────────────────────────
+function getSkyLabel(now, pos, times) {
+    if (pos.altitude <= 0.01) {
+        const minsToSunrise   = (times.sunrise - now) / 60000;
+        const minsFromSunset  = (now - times.sunset)  / 60000;
+        if (minsToSunrise  > 0 && minsToSunrise  <= 45) return 'Dawn';
+        if (minsFromSunset >= 0 && minsFromSunset <= 45) return 'Dusk';
+        return 'Night';
+    }
+    const minsToSunset = (times.sunset - now) / 60000;
+    if (minsToSunset <= 25)    return 'Sunset';
+    if (now >= times.goldenHour)    return 'Golden Hour';
+    if (now <= times.goldenHourEnd) return 'Golden Hour';
+    if (now < times.solarNoon) return 'Morning';
+    return 'Afternoon';
+}
+
+function updateHeader() {
+    const now = getSimTime();
+    document.getElementById('time-display').textContent =
+        now.toLocaleTimeString('en-CA', {
+            hour: '2-digit', minute: '2-digit', hour12: false,
+            timeZone: 'America/Toronto'
+        });
+
+    const pos   = SunCalc.getPosition(now, 43.653, -79.420);
+    const times = SunCalc.getTimes(now, 43.653, -79.420);
+
+    document.getElementById('sun-status').textContent = `${getSkyLabel(now, pos, times)} · sun set ${fmtTime(times.sunset)}`;
+}
+
+updateHeader();
+setInterval(updateHeader, 30 * 1000);
+setInterval(() => { if (activePatio) leafletMarkers[activePatio.name].setIcon(expandedIcon(activePatio)); }, 60 * 1000);
+
+// ── PER-PATIO SHADE ENGINE ────────────────────────────────────────────────────
+
+const patioShadeCache = {};
+
+// Fetch only buildings within 150m of a specific patio
+async function fetchPatioBuildings(lat, lng) {
+    const query = `[out:json][timeout:15];(way["building"](around:150,${lat},${lng}););out body;>;out skel qt;`;
+    const url   = `https://overpass.kumi.systems/api/interpreter?data=${encodeURIComponent(query)}`;
+    const res   = await fetch(url);
+    const data  = await res.json();
+
+    const nodes = {};
+    data.elements.forEach(el => {
+        if (el.type === 'node') nodes[el.id] = [el.lat, el.lon];
+    });
+
+    const buildings = [];
+    data.elements.forEach(el => {
+        if (el.type !== 'way') return;
+        const tags   = el.tags || {};
+        if (!tags.building) return;
+        const coords = (el.nodes || []).map(id => nodes[id]).filter(Boolean);
+        if (coords.length < 3) return;
+        let height = 9;
+        if (tags.height)                  height = parseFloat(tags.height) || 9;
+        else if (tags['building:levels']) height = parseInt(tags['building:levels']) * 3.5;
+        buildings.push({ coords, height });
+    });
+
+    return buildings;
+}
+
+// Angular arc a building occupies as seen from the patio
+function getBuildingArc(patioLat, patioLng, coords, height) {
+    const points = coords.map(([blat, blng]) => {
+        const dy  = (blat - patioLat) * 111320;
+        const dx  = (blng - patioLng) * 111320 * Math.cos(patioLat * Math.PI / 180);
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const az   = ((Math.atan2(dx, dy) * 180 / Math.PI) + 360) % 360;
+        return { dist, az };
+    });
+
+    const minDist      = Math.max(2, Math.min(...points.map(p => p.dist)));
+    const blockAngleDeg = Math.atan(height / minDist) * 180 / Math.PI;
+
+    // Centroid azimuth
+    const centerAz = ((points.reduce((s, p) => s + p.az, 0) / points.length) + 360) % 360;
+
+    // Angular half-width
+    const normalized = points.map(p => {
+        let d = p.az - centerAz;
+        if (d >  180) d -= 360;
+        if (d < -180) d += 360;
+        return d;
+    });
+    const halfWidth = Math.max(3, Math.max(...normalized.map(Math.abs)));
+
+    return {
+        minAz: (centerAz - halfWidth + 360) % 360,
+        maxAz: (centerAz + halfWidth + 360) % 360,
+        centerAz, blockAngleDeg
+    };
+}
+
+function isAzInArc(az, minAz, maxAz) {
+    if (minAz <= maxAz) return az >= minAz && az <= maxAz;
+    return az >= minAz || az <= maxAz; // wraps through north
+}
+
+// Build top-down battle-map style patio SVG with shade overlay
+function buildPatioSVG(patioLat, patioLng, buildings, sunPos, wx = {}) {
+    const W = 248, H = 200;
+    const PX = 8, PY = 8;
+    const PW = W - PX*2, PH = H - PY*2;
+    const cx = PX + PW/2, cy = PY + PH/2;
+
+    const isNight   = sunPos.altitude <= 0.01;
+    const sunAzDeg  = ((sunPos.azimuth * 180 / Math.PI) + 180 + 360) % 360;
+    const sunAltDeg = sunPos.altitude * 180 / Math.PI;
+
+    let totalBlockedArc = 0;
+    buildings.forEach(({ coords, height }) => {
+        const arc = getBuildingArc(patioLat, patioLng, coords, height);
+        if (!arc) return;
+        if (!isNight && isAzInArc(sunAzDeg, arc.minAz, arc.maxAz) && arc.blockAngleDeg > sunAltDeg)
+            totalBlockedArc += Math.min(((arc.maxAz - arc.minAz + 360) % 360), 90);
+    });
+
+    const shadeFrac   = isNight ? 0.88 : Math.min(0.95, totalBlockedArc / 90);
+    const shadeFromAz = (sunAzDeg + 180) % 360;
+    const sd          = shadeFromAz;
+    let x1g, y1g, x2g, y2g;
+    if      (sd >= 315 || sd < 45)  { x1g=0; y1g=0; x2g=0; y2g=1; }
+    else if (sd >= 45  && sd < 135) { x1g=1; y1g=0; x2g=0; y2g=0; }
+    else if (sd >= 135 && sd < 225) { x1g=0; y1g=1; x2g=0; y2g=0; }
+    else                            { x1g=0; y1g=0; x2g=1; y2g=0; }
+
+    // ── FLOOR: alternating wood planks ───────────────────────────────────────
+    const plankH  = 14;
+    const pColors = ['#C08840','#B07830','#C49048','#AA7028','#BC8438'];
+    let floor = '';
+    for (let i = 0, y = PY; y < PY + PH; y += plankH, i++) {
+        const col = pColors[i % pColors.length];
+        const y0 = y, y1 = Math.min(y + plankH, PY + PH);
+        floor += `<rect x="${PX}" y="${y0}" width="${PW}" height="${y1-y0}" fill="${col}"/>`;
+        // grain lines
+        const gx1 = PX + 6 + (i*37)%40, gx2 = gx1 + 30 + (i*19)%60;
+        floor += `<line x1="${gx1}" y1="${y0+5}" x2="${Math.min(gx2, PX+PW-4)}" y2="${y0+5}" stroke="#D4A060" stroke-width="0.7" opacity="0.4"/>`;
+        // knot every few planks
+        if (i % 4 === 1) {
+            const kx = PX + 20 + (i*53)%120;
+            floor += `<ellipse cx="${kx}" cy="${y0+7}" rx="4" ry="2.5" fill="none" stroke="#8B5820" stroke-width="0.9" opacity="0.45"/>`;
+        }
+        // plank divider
+        if (y > PY) floor += `<line x1="${PX}" y1="${y0}" x2="${PX+PW}" y2="${y0}" stroke="#7A5020" stroke-width="0.8" opacity="0.5"/>`;
+    }
+    // vertical board joints (staggered)
+    for (let i = 0; i < 3; i++) {
+        const jx = PX + 55 + i*55;
+        const jy = PY + (i%2===0 ? 0 : plankH);
+        floor += `<line x1="${jx}" y1="${jy}" x2="${jx}" y2="${PY+PH}" stroke="#7A5020" stroke-width="0.7" opacity="0.35"/>`;
+    }
+
+    // ── OUTER WALL / FENCE ────────────────────────────────────────────────────
+    const wall = `
+        <rect x="${PX}" y="${PY}" width="${PW}" height="6" fill="#8B6030" opacity="0.7"/>
+        <rect x="${PX}" y="${PY+PH-6}" width="${PW}" height="6" fill="#8B6030" opacity="0.7"/>
+        <rect x="${PX}" y="${PY}" width="6" height="${PH}" fill="#8B6030" opacity="0.7"/>
+        <rect x="${PX+PW-6}" y="${PY}" width="6" height="${PH}" fill="#8B6030" opacity="0.7"/>
+        <line x1="${PX+6}" y1="${PY+6}" x2="${PX+PW-6}" y2="${PY+6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/>
+        <line x1="${PX+6}" y1="${PY+PH-6}" x2="${PX+PW-6}" y2="${PY+PH-6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/>
+        <line x1="${PX+6}" y1="${PY+6}" x2="${PX+6}" y2="${PY+PH-6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/>
+        <line x1="${PX+PW-6}" y1="${PY+6}" x2="${PX+PW-6}" y2="${PY+PH-6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/>`;
+
+    // ── PICNIC TABLE ──────────────────────────────────────────────────────────
+    const table = (tx, ty) => {
+        const tw=120, th=38, bw=128, bh=10, gap=4;
+        return `
+        <rect x="${tx-bw/2+3}" y="${ty-th/2-gap-bh+3}" width="${bw}" height="${th+2*(gap+bh)}" rx="2" fill="#0A0500" opacity="0.22"/>
+        <rect x="${tx-bw/2}" y="${ty-th/2-gap-bh}" width="${bw}" height="${bh}" rx="1" fill="#7A4020" stroke="#2A0C04" stroke-width="1.5"/>
+        <rect x="${tx-bw/2+1}" y="${ty-th/2-gap-bh+1}" width="${bw-2}" height="2" fill="#A06030" opacity="0.35"/>
+        <line x1="${tx-bw/2+5}" y1="${ty-th/2-gap-bh+4}" x2="${tx+bw/2-5}" y2="${ty-th/2-gap-bh+4}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/>
+        <line x1="${tx-bw/2+5}" y1="${ty-th/2-gap-bh+7}" x2="${tx+bw/2-5}" y2="${ty-th/2-gap-bh+7}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/>
+        <rect x="${tx-tw/2}" y="${ty-th/2}" width="${tw}" height="${th}" rx="1" fill="#C8904A" stroke="#2A0C04" stroke-width="1.5"/>
+        <rect x="${tx-tw/2+1}" y="${ty-th/2+1}" width="${tw-2}" height="3" fill="#E8C070" opacity="0.3"/>
+        <line x1="${tx-tw/2+5}" y1="${ty-5}" x2="${tx+tw/2-5}" y2="${ty-5}" stroke="#D4A458" stroke-width="0.9" opacity="0.55"/>
+        <line x1="${tx-tw/2+5}" y1="${ty-1}" x2="${tx+tw/2-5}" y2="${ty-1}" stroke="#D4A458" stroke-width="0.9" opacity="0.55"/>
+        <line x1="${tx-tw/2+5}" y1="${ty+4}" x2="${tx+tw/2-5}" y2="${ty+4}" stroke="#D4A458" stroke-width="0.9" opacity="0.55"/>
+        <ellipse cx="${tx+18}" cy="${ty-3}" rx="4" ry="2.5" fill="none" stroke="#9A6838" stroke-width="1" opacity="0.5"/>
+        <circle cx="${tx-tw/2+5}" cy="${ty-th/2+4}" r="3" fill="#1A0804" opacity="0.7"/>
+        <circle cx="${tx+tw/2-5}" cy="${ty-th/2+4}" r="3" fill="#1A0804" opacity="0.7"/>
+        <circle cx="${tx-tw/2+5}" cy="${ty+th/2-4}" r="3" fill="#1A0804" opacity="0.7"/>
+        <circle cx="${tx+tw/2-5}" cy="${ty+th/2-4}" r="3" fill="#1A0804" opacity="0.7"/>
+        <rect x="${tx-bw/2}" y="${ty+th/2+gap}" width="${bw}" height="${bh}" rx="1" fill="#7A4020" stroke="#2A0C04" stroke-width="1.5"/>
+        <rect x="${tx-bw/2+1}" y="${ty+th/2+gap+1}" width="${bw-2}" height="2" fill="#A06030" opacity="0.35"/>
+        <line x1="${tx-bw/2+5}" y1="${ty+th/2+gap+4}" x2="${tx+bw/2-5}" y2="${ty+th/2+gap+4}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/>
+        <line x1="${tx-bw/2+5}" y1="${ty+th/2+gap+7}" x2="${tx+bw/2-5}" y2="${ty+th/2+gap+7}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/>`;
+    };
+
+    // ── BARREL ────────────────────────────────────────────────────────────────
+    const barrel = (bx, by) => `
+        <circle cx="${bx}" cy="${by}" r="9" fill="#5A2E10" stroke="#1A0804" stroke-width="1.5"/>
+        <circle cx="${bx}" cy="${by}" r="6" fill="none" stroke="#7A4820" stroke-width="1.2" opacity="0.7"/>
+        <line x1="${bx-9}" y1="${by}" x2="${bx+9}" y2="${by}" stroke="#1A0804" stroke-width="1.2" opacity="0.6"/>
+        <circle cx="${bx}" cy="${by}" r="2" fill="#3A1808" opacity="0.8"/>`;
+
+    const furniture = table(cx, cy-52) + table(cx, cy+52);
+
+    // ── SHADE OVERLAY ─────────────────────────────────────────────────────────
+    // Cloud cover dims/suppresses the directional building shade
+    const clouds    = wx.cloudCover  || 0;
+    const raining   = wx.isRaining   || false;
+    const shadeStr  = raining ? 0 : clouds >= 75 ? 0.15 : clouds >= 35 ? 0.6 : 1.0;
+
+    let shadeDefs = '', shadeRect = '';
+    if (shadeFrac > 0.02 && !isNight && shadeStr > 0) {
+        const maxOp = (shadeFrac * 0.90 * shadeStr).toFixed(2);
+        const midOp = (shadeFrac * 0.55 * shadeStr).toFixed(2);
+        const minOp = (shadeFrac * 0.10 * shadeStr).toFixed(2);
+        shadeDefs = `
+            <linearGradient id="shadeG" x1="${x1g}" y1="${y1g}" x2="${x2g}" y2="${y2g}">
+                <stop offset="0%"   stop-color="#1C2840" stop-opacity="${maxOp}"/>
+                <stop offset="65%"  stop-color="#1C2840" stop-opacity="${midOp}"/>
+                <stop offset="100%" stop-color="#1C2840" stop-opacity="${minOp}"/>
+            </linearGradient>`;
+        shadeRect = `<rect x="${PX+6}" y="${PY+6}" width="${PW-12}" height="${PH-12}" fill="url(#shadeG)"/>`;
+    }
+
+    // ── WEATHER OVERLAY ───────────────────────────────────────────────────────
+    let weatherDefs = '', weatherLayer = '';
+    if (!isNight) {
+        if (raining) {
+            weatherDefs = `<pattern id="rainP" width="8" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(-25)">
+                <line x1="4" y1="0" x2="4" y2="14" stroke="#5878B8" stroke-width="1.5" opacity="0.55"/>
+            </pattern>`;
+            weatherLayer = `
+                <rect x="${PX+6}" y="${PY+6}" width="${PW-12}" height="${PH-12}" fill="#1C2840" opacity="0.50"/>
+                <rect x="${PX+6}" y="${PY+6}" width="${PW-12}" height="${PH-12}" fill="url(#rainP)"/>`;
+        } else if (clouds >= 75) {
+            const op = (0.18 + (clouds - 75) / 25 * 0.20).toFixed(2);
+            weatherLayer = `<rect x="${PX+6}" y="${PY+6}" width="${PW-12}" height="${PH-12}" fill="#7080A0" opacity="${op}"/>`;
+        } else if (clouds >= 35) {
+            const op = ((clouds - 35) / 40 * 0.14).toFixed(2);
+            weatherLayer = `<rect x="${PX+6}" y="${PY+6}" width="${PW-12}" height="${PH-12}" fill="#909898" opacity="${op}"/>`;
+        }
+    }
+
+    const nightOverlay = isNight ? `
+        <rect x="${PX+6}" y="${PY+6}" width="${PW-12}" height="${PH-12}" fill="#0A0F20" opacity="0.65"/>
+        <text x="${cx}" y="${cy+8}" text-anchor="middle" font-size="26">🌙</text>` : '';
+
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <clipPath id="outerClip"><rect x="${PX}" y="${PY}" width="${PW}" height="${PH}" rx="3"/></clipPath>
+            ${shadeDefs}
+            ${weatherDefs}
+        </defs>
+        <g clip-path="url(#outerClip)">
+            ${floor}
+            ${wall}
+            ${furniture}
+            ${shadeRect}
+            ${weatherLayer}
+            ${nightOverlay}
+        </g>
+        <rect x="${PX}" y="${PY}" width="${PW}" height="${PH}" fill="none" stroke="#C84830" stroke-width="2" rx="3"/>
+    </svg>`;
+}
+
+// Fetch buildings, compute shade, inject patio visual into open card
+async function analyzeShade(patio) {
+    const id = patio.name.replace(/\W+/g, '-');
+
+    if (!patioShadeCache[patio.name]) {
+        const wrap = document.getElementById(`shade-wrap-${id}`);
+        if (wrap) wrap.innerHTML = '<div class="shade-loading">Analyzing shade…</div>';
+        try {
+            patioShadeCache[patio.name] = await fetchPatioBuildings(patio.lat, patio.lng);
+        } catch (e) {
+            const wrap = document.getElementById(`shade-wrap-${id}`);
+            if (wrap) wrap.innerHTML = '<div class="shade-loading">Could not load building data</div>';
+            return;
+        }
+    }
+
+    const buildings = patioShadeCache[patio.name];
+    const sunPos    = SunCalc.getPosition(getSimTime(), patio.lat, patio.lng);
+    const sunAzDeg  = ((sunPos.azimuth * 180 / Math.PI) + 180 + 360) % 360;
+    const sunAltDeg = sunPos.altitude * 180 / Math.PI;
+    const isNight   = sunPos.altitude <= 0.01;
+
+    // Calculate shade percentage
+    let totalBlockedArc = 0;
+    if (!isNight) {
+        buildings.forEach(({ coords, height }) => {
+            const arc = getBuildingArc(patio.lat, patio.lng, coords, height);
+            if (!arc) return;
+            if (isAzInArc(sunAzDeg, arc.minAz, arc.maxAz) && arc.blockAngleDeg > sunAltDeg) {
+                totalBlockedArc += Math.min(((arc.maxAz - arc.minAz + 360) % 360), 90);
+            }
+        });
+    }
+
+    const shadeFrac    = isNight ? 0.85 : Math.min(0.95, totalBlockedArc / 90);
+    const cloudFactor  = isNight ? 1 : weather.isRaining ? 0 : Math.max(0, 1 - weather.cloudCover / 100 * 0.9);
+    const sunPct       = isNight ? 0 : Math.round((1 - shadeFrac) * 100 * cloudFactor);
+    const status       = isNight         ? 'After Sunset'
+                       : weather.isRaining           ? 'Raining'
+                       : weather.cloudCover >= 75    ? 'Overcast'
+                       : weather.cloudCover >= 35    ? 'Partly Cloudy'
+                       : sunPct >= 80                ? 'Full Sun'
+                       : sunPct >= 40                ? 'Partly Sunny'
+                       : 'Mostly Shaded';
+
+    const svg  = buildPatioSVG(patio.lat, patio.lng, buildings, sunPos, weather);
+    const wrap = document.getElementById(`shade-wrap-${id}`);
+    if (wrap) {
+        wrap.innerHTML = `
+            <div class="shade-visual">
+                <div class="shade-stats">
+                    <div class="shade-status">${status}</div>
+                    <div class="shade-pct">${isNight ? '' : `${sunPct}% in sun`}</div>
+                </div>
+                ${svg}
+            </div>`;
+
+        // After the card expands, pan to ensure it's fully visible
+        setTimeout(() => {
+            const markerPx = map.latLngToContainerPoint([patio.lat, patio.lng]);
+            const cardEl   = wrap.closest('.marker-card');
+            if (!cardEl) return;
+            const cardH    = cardEl.offsetHeight;
+            const cardW    = cardEl.offsetWidth;
+            const margin   = 20;
+            const mapSize  = map.getSize();
+
+            const cardTop  = markerPx.y - cardH - 14;
+            const cardLeft = markerPx.x - cardW / 2;
+            const cardRight= markerPx.x + cardW / 2;
+
+            let panX = 0, panY = 0;
+            if (cardTop  < margin)             panY = cardTop  - margin;
+            if (cardLeft < margin)             panX = cardLeft - margin;
+            else if (cardRight > mapSize.x - margin) panX = cardRight - (mapSize.x - margin);
+
+            if (panX !== 0 || panY !== 0) map.panBy([panX, panY], { animate: true });
+        }, 60);
+    }
+}
+</script>
+</body>
+</html>

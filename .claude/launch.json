@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "suns-out",
+      "runtimeExecutable": "/usr/bin/python3",
+      "runtimeArgs": ["/Users/curtischapman/Desktop/Suns Out/serve.py"],
+      "port": 3456
+    }
+  ]
+}
