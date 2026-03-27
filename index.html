@@ -263,7 +263,7 @@
             width: 100%; height: 100%;
             pointer-events: none;
             z-index: 700;
-            overflow: hidden;
+            overflow: visible;
         }
         #card-layer .card-anchor {
             position: absolute;
@@ -469,6 +469,63 @@
             text-transform: uppercase;
             color: #000;
             line-height: 1;
+        }
+
+        /* ── MOBILE ──────────────────────────────────────────────────── */
+        @media (max-width: 480px) {
+            header {
+                height: auto;
+                padding: 10px 16px;
+                justify-content: flex-start;
+            }
+            .logo {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 2px;
+            }
+            .logo-left { align-items: flex-start; }
+            .logo-title { font-size: 26px; }
+            .logo-sub { display: none; }
+            .logo-tagline {
+                display: block;
+                font-size: 16px;
+                padding-top: 0;
+            }
+            .header-right { display: none; }
+
+            /* Card becomes a bottom sheet */
+            #card-layer {
+                overflow: visible;
+                pointer-events: none;
+            }
+            #card-layer .card-anchor {
+                position: fixed !important;
+                left: 0 !important;
+                top: auto !important;
+                bottom: 0 !important;
+                width: 100% !important;
+                height: auto !important;
+            }
+            .marker-card {
+                position: relative;
+                bottom: auto;
+                left: auto;
+                transform: none;
+                width: 100%;
+                max-width: none;
+                border-radius: 12px 12px 0 0;
+                border-left: none;
+                border-right: none;
+                border-bottom: none;
+                max-height: 65vh;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            /* Remove the downward arrow on mobile */
+            .marker-card::after { display: none; }
+
+            /* Responsive SVG diagram */
+            .shade-visual svg { width: 100%; height: auto; }
         }
     </style>
 </head>
@@ -745,6 +802,7 @@ function openCard(patio) {
 }
 
 function positionCard() {
+    if (window.innerWidth <= 480) return; // bottom sheet handles its own position on mobile
     const anchor = document.querySelector('#card-layer .card-anchor');
     if (!anchor) return;
     const pt = map.latLngToContainerPoint([
@@ -755,6 +813,19 @@ function positionCard() {
     anchor.style.top  = pt.y + 'px';
 }
 
+function panToForCard(patio) {
+    if (window.innerWidth <= 480) {
+        // On mobile the bottom sheet covers ~65vh — pan marker to upper 35% of screen
+        const mapH   = map.getContainer().offsetHeight;
+        const target = map.latLngToContainerPoint([patio.lat, patio.lng]);
+        const offset = target.y - mapH * 0.3; // move dot to 30% from top
+        const newCenter = map.containerPointToLatLng([target.x, mapH / 2 + offset]);
+        map.panTo(newCenter, { animate: true });
+    } else {
+        map.panTo([patio.lat, patio.lng], { animate: true });
+    }
+}
+
 // Combined rAF-throttled handler for all map move/zoom events
 let _renderPending = false;
 function scheduleRender() {
@@ -763,6 +834,14 @@ function scheduleRender() {
     requestAnimationFrame(() => { _renderPending = false; renderLabels(); positionCard(); });
 }
 map.on('move zoom moveend zoomend', scheduleRender);
+
+// Tap on map background to dismiss card (especially useful on mobile)
+// Use a flag so marker/badge clicks don't immediately re-close the card
+let _justOpenedCard = false;
+map.on('click', () => {
+    if (_justOpenedCard) { _justOpenedCard = false; return; }
+    if (activePatio) closeCard();
+});
 
 function closeCard(e) {
     if (e) e.stopPropagation();
@@ -779,11 +858,12 @@ function addMarkers() {
         const m = L.marker([patio.lat, patio.lng], { icon: smallIcon(patio) })
             .addTo(map)
             .on('click', () => {
+                _justOpenedCard = true;
                 if (activePatio && activePatio.name !== patio.name) closeCard();
                 activePatio = patio;
                 const badge = getBadgeEl(patio.name);
                 if (badge) badge.style.display = 'none';
-                map.panTo([patio.lat, patio.lng], { animate: true });
+                panToForCard(patio);
                 openCard(patio);
                 setTimeout(() => analyzeShade(patio), 50);
             });
@@ -908,10 +988,11 @@ function createLabelLayer() {
         div.dataset.name = patio.name;
         div.innerHTML    = `<span class="badge-icon">${conditionIcon(info.score, info.altitude > 0)}</span><span>${patio.name}</span>`;
         div.addEventListener('click', () => {
+            _justOpenedCard = true;
             if (activePatio && activePatio.name !== patio.name) closeCard();
             activePatio = patio;
             div.style.display = 'none';
-            map.panTo([patio.lat, patio.lng], { animate: true });
+            panToForCard(patio);
             openCard(patio);
             setTimeout(() => analyzeShade(patio), 50);
         });
