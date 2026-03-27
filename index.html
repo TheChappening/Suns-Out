@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Suns Out — Toronto Patio Finder</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://a.basemaps.cartocdn.com">
+    <link rel="preconnect" href="https://overpass.kumi.systems">
+    <link rel="preconnect" href="https://api.open-meteo.com">
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Pacifico&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -20,9 +25,9 @@
             --cream:      #F2E8D5;
             --cream-dark: #D8CCBA;
             --rust:       #C84830;
-            --rust-light: #D95C3A;
             --brown:      #3D2010;
             --mid-brown:  #7A5040;
+            --checker:    repeating-linear-gradient(90deg, var(--rust) 0px, var(--rust) 10px, var(--cream) 10px, var(--cream) 20px);
         }
 
         body {
@@ -112,15 +117,12 @@
             color: var(--mid-brown);
         }
 
+
         /* Checkered stripe */
         .header-stripe {
             height: 10px;
             flex-shrink: 0;
-            background: repeating-linear-gradient(
-                90deg,
-                var(--rust)  0px, var(--rust)  10px,
-                var(--cream) 10px, var(--cream) 20px
-            );
+            background: var(--checker);
             position: relative;
             z-index: 1000;
         }
@@ -154,12 +156,11 @@
         .leaflet-control-attribution a { color: var(--rust) !important; }
 
         /* ── MAP LOADING ─────────────────────────────────────────────── */
-        #map-loading {
+        .loading-box {
             position: absolute;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            z-index: 1000;
+            z-index: 900;
             background: var(--cream);
             border: 2px solid var(--rust);
             border-radius: 3px;
@@ -167,18 +168,10 @@
             text-align: center;
             overflow: hidden;
         }
-        .map-loading-stripe {
-            height: 10px;
-            background: repeating-linear-gradient(
-                90deg,
-                var(--rust)  0px, var(--rust)  10px,
-                var(--cream) 10px, var(--cream) 20px
-            );
-        }
-        .map-loading-body {
-            padding: 18px 28px 20px;
-        }
-        .map-loading-text {
+        #map-loading { z-index: 1000; }
+        .loading-stripe { height: 10px; background: var(--checker); }
+        .loading-body   { padding: 18px 28px 20px; }
+        .loading-text {
             font-family: 'Oswald', sans-serif;
             font-size: 12px;
             letter-spacing: 0.22em;
@@ -186,21 +179,16 @@
             color: var(--rust);
             margin-bottom: 12px;
         }
-        .map-loading-dots {
-            display: flex;
-            justify-content: center;
-            gap: 7px;
-        }
-        .map-loading-dots span {
+        .loading-dots { display: flex; justify-content: center; gap: 7px; }
+        .loading-dots span {
             display: block;
-            width: 7px;
-            height: 7px;
+            width: 7px; height: 7px;
             background: var(--rust);
             border-radius: 50%;
             animation: dotPulse 1.2s ease-in-out infinite;
         }
-        .map-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
-        .map-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+        .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
         @keyframes dotPulse {
             0%, 80%, 100% { opacity: 0.25; transform: scale(0.75); }
             40%            { opacity: 1;    transform: scale(1);    }
@@ -258,7 +246,7 @@
             top: 0; left: 0;
             width: 100%; height: 100%;
             pointer-events: none;
-            z-index: 500;
+            z-index: 600;
             overflow: hidden;
         }
         #leader-svg {
@@ -266,8 +254,21 @@
             top: 0; left: 0;
             width: 100%; height: 100%;
             pointer-events: none;
-            z-index: 499;
+            z-index: 389;
             overflow: hidden;
+        }
+        #card-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 700;
+            overflow: hidden;
+        }
+        #card-layer .card-anchor {
+            position: absolute;
+            width: 0; height: 0;
+            pointer-events: auto;
         }
         .patio-badge {
             position: absolute;
@@ -331,11 +332,7 @@
             content: '';
             display: block;
             height: 10px;
-            background: repeating-linear-gradient(
-                90deg,
-                var(--rust)  0px, var(--rust)  10px,
-                var(--cream) 10px, var(--cream) 20px
-            );
+            background: var(--checker);
             border-radius: 1px 1px 0 0;
         }
 
@@ -495,13 +492,19 @@
 <div id="map">
     <svg id="leader-svg"></svg>
     <div id="label-layer"></div>
-    <div id="map-loading">
-        <div class="map-loading-stripe"></div>
-        <div class="map-loading-body">
-            <div class="map-loading-text">Finding patios near you…</div>
-            <div class="map-loading-dots">
-                <span></span><span></span><span></span>
-            </div>
+    <div id="card-layer"></div>
+    <div id="map-updating" class="loading-box" style="display:none">
+        <div class="loading-stripe"></div>
+        <div class="loading-body">
+            <div class="loading-text">Finding bars near you…</div>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+        </div>
+    </div>
+    <div id="map-loading" class="loading-box">
+        <div class="loading-stripe"></div>
+        <div class="loading-body">
+            <div class="loading-text">Finding patios near you…</div>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
         </div>
     </div>
 </div>
@@ -510,8 +513,7 @@
 // ── DEBUG TIME OVERRIDE ───────────────────────────────────────────────────────
 // Set to null for real time, or a Date object to simulate a specific time.
 // e.g. new Date().setHours(15, 45, 0, 0) simulates 3:45 PM today.
-const DEBUG_TIME = (() => { const d = new Date(); d.setHours(15, 45, 0, 0); return d; })();
-function getSimTime() { return DEBUG_TIME || new Date(); }
+function getSimTime() { return new Date(); }
 
 // ── PATIO DATA ────────────────────────────────────────────────────────────────
 let patios = [
@@ -520,6 +522,7 @@ let patios = [
         address: "1150 Queen St W",
         lat: 43.6431, lng: -79.4264,
         facing: 180,
+        hasPatioTag: true,
         description: "Legendary Queen West institution. The back patio is a scene."
     },
     {
@@ -527,6 +530,7 @@ let patios = [
         address: "159 Augusta Ave",
         lat: 43.6527, lng: -79.4017,
         facing: 90,
+        hasPatioTag: true,
         description: "Kensington Market favourite. Lively back patio, great people watching."
     },
     {
@@ -534,6 +538,7 @@ let patios = [
         address: "61 Ossington Ave",
         lat: 43.6478, lng: -79.4269,
         facing: 270,
+        hasPatioTag: true,
         description: "Ossington strip staple. West-facing patio catches late afternoon sun."
     },
     {
@@ -541,6 +546,7 @@ let patios = [
         address: "612 College St",
         lat: 43.6554, lng: -79.4081,
         facing: 180,
+        hasPatioTag: true,
         description: "College Street craft beer institution. South-facing patio, excellent tap list."
     },
     {
@@ -548,6 +554,7 @@ let patios = [
         address: "1149 Dundas St W",
         lat: 43.6513, lng: -79.4270,
         facing: 180,
+        hasPatioTag: true,
         description: "Small, beloved neighbourhood bar. Tiny but sunny south-facing patio."
     },
     {
@@ -555,6 +562,7 @@ let patios = [
         address: "12 Clinton St",
         lat: 43.6563, lng: -79.4117,
         facing: 90,
+        hasPatioTag: true,
         description: "Historic Clinton St tavern. Enclosed back patio, cozy and shaded."
     },
     {
@@ -562,6 +570,7 @@ let patios = [
         address: "856 College St",
         lat: 43.6548, lng: -79.4202,
         facing: 180,
+        hasPatioTag: true,
         description: "Solid College St pub. Good street-facing patio for watching the world go by."
     },
     {
@@ -569,6 +578,7 @@ let patios = [
         address: "1279 Queen St W",
         lat: 43.6417, lng: -79.4335,
         facing: 180,
+        hasPatioTag: true,
         description: "Parkdale dive bar. Unpretentious patio, zero attitude."
     },
     {
@@ -576,6 +586,7 @@ let patios = [
         address: "249 Ossington Ave",
         lat: 43.6488, lng: -79.4259,
         facing: 90,
+        hasPatioTag: true,
         description: "Honky-tonk bar on Ossington. Small patio out front."
     },
     {
@@ -583,6 +594,7 @@ let patios = [
         address: "505 College St",
         lat: 43.6554, lng: -79.4126,
         facing: 180,
+        hasPatioTag: true,
         description: "Beautiful Gaudi-esque interior. Modest patio but prime College St location."
     }
 ];
@@ -628,12 +640,11 @@ function conditionIcon(score, isDay) {
     return '☀️';
 }
 
-function fmtTime(date) {
-    return date.toLocaleTimeString('en-CA', {
-        hour: '2-digit', minute: '2-digit', hour12: false,
-        timeZone: 'America/Toronto'
-    });
-}
+const _timeFmt = new Intl.DateTimeFormat('en-CA', {
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'America/Toronto'
+});
+function fmtTime(date) { return _timeFmt.format(date); }
 
 // ── MAP INIT ──────────────────────────────────────────────────────────────────
 const map = L.map('map', {
@@ -688,48 +699,75 @@ new LocateControl({ position: 'topleft' }).addTo(map);
 const leafletMarkers = {};
 let activePatio = null;
 
+function getVisiblePatios() {
+    return patios.filter(p => p.hasPatioTag);
+}
+
 function smallIcon(patio) {
     const info  = getSunInfo(patio.lat, patio.lng, patio.facing);
-    const isDay = SunCalc.getPosition(getSimTime(), patio.lat, patio.lng).altitude > 0.01;
-    const html  = `<div class="patio-dot">${conditionIcon(info.score, isDay)}</div>`;
+    const html  = `<div class="patio-dot">${conditionIcon(info.score, info.altitude > 0)}</div>`;
     return L.divIcon({ html, className: 'patio-icon-wrapper', iconSize: [26,26], iconAnchor: [13,13] });
 }
 
-function expandedIcon(patio) {
-    const info = getSunInfo(patio.lat, patio.lng, patio.facing);
-    const isDay = SunCalc.getPosition(getSimTime(), patio.lat, patio.lng).altitude > 0.01;
-    const icon = conditionIcon(info.score, isDay);
-    const html = `
-        <div class="marker-card">
-            <div class="card-inner">
-                <div class="card-header">
-                    <div class="card-name"><span style="margin-right:6px">${icon}</span>${patio.name}</div>
-                    <button class="card-close" onclick="closeCard(event)">✕ Close</button>
-                </div>
-                <div class="card-address">${patio.address}</div>
-                <div class="shade-wrap" id="shade-wrap-${patio.name.replace(/\W+/g,'-')}">
-                    <div class="shade-loading">Analyzing shade…</div>
-                </div>
-                <div class="card-meta">
-                    <div class="meta-item">
-                        <div class="meta-label">Sun Direction</div>
-                        <div class="meta-value">${info.azimuthDeg !== null ? compassLabel(info.azimuthDeg) : '—'}</div>
+
+function openCard(patio) {
+    const layer = document.getElementById('card-layer');
+    const info  = getSunInfo(patio.lat, patio.lng, patio.facing);
+    const icon  = conditionIcon(info.score, info.altitude > 0);
+    const id    = patio.name.replace(/\W+/g, '-');
+    layer.innerHTML = `
+        <div class="card-anchor" data-lat="${patio.lat}" data-lng="${patio.lng}">
+            <div class="marker-card">
+                <div class="card-inner">
+                    <div class="card-header">
+                        <div class="card-name"><span style="margin-right:6px">${icon}</span>${patio.name}</div>
+                        <button class="card-close" onclick="closeCard(event)">✕ Close</button>
                     </div>
-                    <div class="meta-item">
-                        <div class="meta-label">Sunset</div>
-                        <div class="meta-value">${fmtTime(info.times.sunset)}</div>
+                    <div class="card-address">${patio.address}</div>
+                    <div class="shade-wrap" id="shade-wrap-${id}">
+                        <div class="shade-loading">Analyzing shade…</div>
                     </div>
+                    <div class="card-meta">
+                        <div class="meta-item">
+                            <div class="meta-label">Sun Direction</div>
+                            <div class="meta-value">${info.azimuthDeg !== null ? compassLabel(info.azimuthDeg) : '—'}</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">Sunset</div>
+                            <div class="meta-value">${fmtTime(info.times.sunset)}</div>
+                        </div>
+                    </div>
+                    <div class="card-desc">${patio.description}</div>
                 </div>
-                <div class="card-desc">${patio.description}</div>
             </div>
         </div>`;
-    return L.divIcon({ html, className: 'patio-icon-wrapper', iconSize: [0,0], iconAnchor: [0,0] });
+    positionCard();
 }
+
+function positionCard() {
+    const anchor = document.querySelector('#card-layer .card-anchor');
+    if (!anchor) return;
+    const pt = map.latLngToContainerPoint([
+        parseFloat(anchor.dataset.lat),
+        parseFloat(anchor.dataset.lng)
+    ]);
+    anchor.style.left = pt.x + 'px';
+    anchor.style.top  = pt.y + 'px';
+}
+
+// Combined rAF-throttled handler for all map move/zoom events
+let _renderPending = false;
+function scheduleRender() {
+    if (_renderPending) return;
+    _renderPending = true;
+    requestAnimationFrame(() => { _renderPending = false; renderLabels(); positionCard(); });
+}
+map.on('move zoom moveend zoomend', scheduleRender);
 
 function closeCard(e) {
     if (e) e.stopPropagation();
     if (!activePatio) return;
-    leafletMarkers[activePatio.name].setIcon(smallIcon(activePatio));
+    document.getElementById('card-layer').innerHTML = '';
     const badge = getBadgeEl(activePatio.name);
     if (badge) badge.style.display = '';
     activePatio = null;
@@ -737,7 +775,7 @@ function closeCard(e) {
 }
 
 function addMarkers() {
-    patios.forEach(patio => {
+    getVisiblePatios().forEach(patio => {
         const m = L.marker([patio.lat, patio.lng], { icon: smallIcon(patio) })
             .addTo(map)
             .on('click', () => {
@@ -746,7 +784,7 @@ function addMarkers() {
                 const badge = getBadgeEl(patio.name);
                 if (badge) badge.style.display = 'none';
                 map.panTo([patio.lat, patio.lng], { animate: true });
-                leafletMarkers[patio.name].setIcon(expandedIcon(patio));
+                openCard(patio);
                 setTimeout(() => analyzeShade(patio), 50);
             });
         leafletMarkers[patio.name] = m;
@@ -772,16 +810,17 @@ function getUserLocation() {
 }
 
 async function fetchPatiosNearby(lat, lng) {
-    const query = `[out:json][timeout:20];(
-        node["amenity"~"^(bar|pub)$"]["outdoor_seating"="yes"](around:2000,${lat},${lng});
-        way["amenity"~"^(bar|pub)$"]["outdoor_seating"="yes"](around:2000,${lat},${lng});
-        node["amenity"="restaurant"]["outdoor_seating"="yes"](around:2000,${lat},${lng});
-        way["amenity"="restaurant"]["outdoor_seating"="yes"](around:2000,${lat},${lng});
+    const query = `[out:json][timeout:15];(
+        node["amenity"~"^(bar|pub|nightclub|biergarten)$"](around:1500,${lat},${lng});
+        way["amenity"~"^(bar|pub|nightclub|biergarten)$"](around:1500,${lat},${lng});
+        node["amenity"~"^(bar|pub|nightclub|biergarten)$"]["outdoor_seating"="yes"](around:3000,${lat},${lng});
+        way["amenity"~"^(bar|pub|nightclub|biergarten)$"]["outdoor_seating"="yes"](around:3000,${lat},${lng});
     );out center;`;
     const url = `https://overpass.kumi.systems/api/interpreter?data=${encodeURIComponent(query)}`;
     try {
         const res  = await fetch(url);
         const data = await res.json();
+        const seen = new Set();
         const results = data.elements
             .filter(el => el.tags && el.tags.name)
             .map(el => {
@@ -789,9 +828,16 @@ async function fetchPatiosNearby(lat, lng) {
                 const elLng = el.lon ?? el.center?.lon;
                 if (!elLat || !elLng) return null;
                 const t = el.tags;
+                const key = t.name + '|' + Math.round(elLat * 1000) + '|' + Math.round(elLng * 1000);
+                if (seen.has(key)) return null;
+                seen.add(key);
                 const addr = [t['addr:housenumber'], t['addr:street']].filter(Boolean).join(' ')
                           || t['addr:place'] || '';
-                return { name: t.name, address: addr, lat: elLat, lng: elLng, facing: 180, description: '' };
+                const nameAndDesc = (t.name + ' ' + (t.description || '') + ' ' + (t.note || '')).toLowerCase();
+                const hasPatioTag = t.outdoor_seating === 'yes'
+                    || t.patio === 'yes'
+                    || /\b(patio|terrace|rooftop|outdoor)\b/.test(nameAndDesc);
+                return { name: t.name, address: addr, lat: elLat, lng: elLng, facing: 180, hasPatioTag, description: '' };
             })
             .filter(Boolean);
         if (results.length > 0) patios = results;
@@ -810,24 +856,38 @@ async function fetchWeather(lat, lng) {
 }
 
 function clearMarkers() {
-    if (activePatio) activePatio = null;
-    Object.values(leafletMarkers).forEach(m => map.removeLayer(m));
-    Object.keys(leafletMarkers).forEach(k => delete leafletMarkers[k]);
+    document.getElementById('card-layer').innerHTML = '';
+    activePatio = null;
+    for (const [k, m] of Object.entries(leafletMarkers)) {
+        map.removeLayer(m);
+        delete leafletMarkers[k];
+    }
     document.getElementById('label-layer').innerHTML = '';
     document.getElementById('leader-svg').innerHTML  = '';
 }
 
 async function init() {
+    // Phase 1: show hardcoded patios immediately — no waiting
+    document.getElementById('map-loading').style.display = 'none';
+    fetchWeather(43.651, -79.421);   // start weather fetch in background (no await)
+    addMarkers();
+
+    // Phase 2: get location + nearby bars (show subtle updating pill)
+    const upd = document.getElementById('map-updating');
+    upd.style.display = 'block';
+
     const loc = await getUserLocation();
-    map.panTo([loc.lat, loc.lng]);
+    map.panTo([loc.lat, loc.lng], { animate: true });
 
     await Promise.all([
         fetchPatiosNearby(loc.lat, loc.lng),
         fetchWeather(loc.lat, loc.lng)
     ]);
 
-    document.getElementById('map-loading').style.display = 'none';
+    // Phase 3: refresh map with real data
+    clearMarkers();
     addMarkers();
+    upd.style.display = 'none';
 }
 
 init();
@@ -841,19 +901,18 @@ function getBadgeEl(name) {
 function createLabelLayer() {
     const layer = document.getElementById('label-layer');
     layer.innerHTML = '';
-    patios.forEach(patio => {
+    getVisiblePatios().forEach(patio => {
         const info  = getSunInfo(patio.lat, patio.lng, patio.facing);
-        const isDay = SunCalc.getPosition(getSimTime(), patio.lat, patio.lng).altitude > 0.01;
         const div   = document.createElement('div');
         div.className    = 'patio-badge';
         div.dataset.name = patio.name;
-        div.innerHTML    = `<span class="badge-icon">${conditionIcon(info.score, isDay)}</span><span>${patio.name}</span>`;
+        div.innerHTML    = `<span class="badge-icon">${conditionIcon(info.score, info.altitude > 0)}</span><span>${patio.name}</span>`;
         div.addEventListener('click', () => {
             if (activePatio && activePatio.name !== patio.name) closeCard();
             activePatio = patio;
             div.style.display = 'none';
             map.panTo([patio.lat, patio.lng], { animate: true });
-            leafletMarkers[patio.name].setIcon(expandedIcon(patio));
+            openCard(patio);
             setTimeout(() => analyzeShade(patio), 50);
         });
         layer.appendChild(div);
@@ -862,7 +921,7 @@ function createLabelLayer() {
 }
 
 function renderLabels() {
-    const items = patios.map(patio => {
+    const items = getVisiblePatios().map(patio => {
         const el = getBadgeEl(patio.name);
         if (!el || el.style.display === 'none') return null;
         const pt = map.latLngToContainerPoint([patio.lat, patio.lng]);
@@ -932,8 +991,6 @@ function updateLeaderLines(items) {
     });
 }
 
-map.on('moveend zoomend', renderLabels);
-
 // ── CLOCK & HEADER STATUS ─────────────────────────────────────────────────────
 function getSkyLabel(now, pos, times) {
     if (pos.altitude <= 0.01) {
@@ -953,11 +1010,7 @@ function getSkyLabel(now, pos, times) {
 
 function updateHeader() {
     const now = getSimTime();
-    document.getElementById('time-display').textContent =
-        now.toLocaleTimeString('en-CA', {
-            hour: '2-digit', minute: '2-digit', hour12: false,
-            timeZone: 'America/Toronto'
-        });
+    document.getElementById('time-display').textContent = fmtTime(now);
 
     const pos   = SunCalc.getPosition(now, 43.653, -79.420);
     const times = SunCalc.getTimes(now, 43.653, -79.420);
@@ -968,16 +1021,16 @@ function updateHeader() {
 updateHeader();
 setInterval(updateHeader, 30 * 1000);
 setInterval(() => {
-    if (activePatio) leafletMarkers[activePatio.name].setIcon(expandedIcon(activePatio));
+    if (activePatio) { openCard(activePatio); analyzeShade(activePatio); }
     // Refresh dot icons and badge icons for time/weather changes
-    patios.forEach(patio => {
+    getVisiblePatios().forEach(patio => {
         if (activePatio && activePatio.name === patio.name) return;
         if (leafletMarkers[patio.name]) leafletMarkers[patio.name].setIcon(smallIcon(patio));
         const badge = getBadgeEl(patio.name);
-        if (badge) badge.querySelector('.badge-icon').textContent = conditionIcon(
-            getSunInfo(patio.lat, patio.lng, patio.facing).score,
-            SunCalc.getPosition(getSimTime(), patio.lat, patio.lng).altitude > 0.01
-        );
+        if (badge) {
+            const info = getSunInfo(patio.lat, patio.lng, patio.facing);
+            badge.querySelector('.badge-icon').textContent = conditionIcon(info.score, info.altitude > 0);
+        }
     });
 }, 60 * 1000);
 
@@ -1050,12 +1103,45 @@ function isAzInArc(az, minAz, maxAz) {
     return az >= minAz || az <= maxAz; // wraps through north
 }
 
+// ── STATIC SVG PARTS (computed once, reused on every card open) ───────────────
+const _SVG_W = 248, _SVG_H = 200, _SVG_PX = 8, _SVG_PY = 8;
+const _SVG_PW = _SVG_W - _SVG_PX*2, _SVG_PH = _SVG_H - _SVG_PY*2;
+const _SVG_CX = _SVG_PX + _SVG_PW/2, _SVG_CY = _SVG_PY + _SVG_PH/2;
+
+const _SVG_STATIC = (() => {
+    const W=_SVG_W, H=_SVG_H, PX=_SVG_PX, PY=_SVG_PY, PW=_SVG_PW, PH=_SVG_PH;
+    const cx=_SVG_CX, cy=_SVG_CY;
+    const plankH = 14;
+    const pColors = ['#C08840','#B07830','#C49048','#AA7028','#BC8438'];
+    let floor = '';
+    for (let i = 0, y = PY; y < PY + PH; y += plankH, i++) {
+        const col = pColors[i % pColors.length];
+        const y0 = y, y1 = Math.min(y + plankH, PY + PH);
+        floor += `<rect x="${PX}" y="${y0}" width="${PW}" height="${y1-y0}" fill="${col}"/>`;
+        const gx1 = PX + 6 + (i*37)%40, gx2 = gx1 + 30 + (i*19)%60;
+        floor += `<line x1="${gx1}" y1="${y0+5}" x2="${Math.min(gx2, PX+PW-4)}" y2="${y0+5}" stroke="#D4A060" stroke-width="0.7" opacity="0.4"/>`;
+        if (i % 4 === 1) {
+            const kx = PX + 20 + (i*53)%120;
+            floor += `<ellipse cx="${kx}" cy="${y0+7}" rx="4" ry="2.5" fill="none" stroke="#8B5820" stroke-width="0.9" opacity="0.45"/>`;
+        }
+        if (y > PY) floor += `<line x1="${PX}" y1="${y0}" x2="${PX+PW}" y2="${y0}" stroke="#7A5020" stroke-width="0.8" opacity="0.5"/>`;
+    }
+    for (let i = 0; i < 3; i++) {
+        const jx = PX + 55 + i*55, jy = PY + (i%2===0 ? 0 : plankH);
+        floor += `<line x1="${jx}" y1="${jy}" x2="${jx}" y2="${PY+PH}" stroke="#7A5020" stroke-width="0.7" opacity="0.35"/>`;
+    }
+    const wall = `<rect x="${PX}" y="${PY}" width="${PW}" height="6" fill="#8B6030" opacity="0.7"/><rect x="${PX}" y="${PY+PH-6}" width="${PW}" height="6" fill="#8B6030" opacity="0.7"/><rect x="${PX}" y="${PY}" width="6" height="${PH}" fill="#8B6030" opacity="0.7"/><rect x="${PX+PW-6}" y="${PY}" width="6" height="${PH}" fill="#8B6030" opacity="0.7"/><line x1="${PX+6}" y1="${PY+6}" x2="${PX+PW-6}" y2="${PY+6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/><line x1="${PX+6}" y1="${PY+PH-6}" x2="${PX+PW-6}" y2="${PY+PH-6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/><line x1="${PX+6}" y1="${PY+6}" x2="${PX+6}" y2="${PY+PH-6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/><line x1="${PX+PW-6}" y1="${PY+6}" x2="${PX+PW-6}" y2="${PY+PH-6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/>`;
+    const mkTable = (tx, ty) => {
+        const tw=120, th=38, bw=128, bh=10, gap=4;
+        return `<rect x="${tx-bw/2+3}" y="${ty-th/2-gap-bh+3}" width="${bw}" height="${th+2*(gap+bh)}" rx="2" fill="#0A0500" opacity="0.22"/><rect x="${tx-bw/2}" y="${ty-th/2-gap-bh}" width="${bw}" height="${bh}" rx="1" fill="#7A4020" stroke="#2A0C04" stroke-width="1.5"/><rect x="${tx-bw/2+1}" y="${ty-th/2-gap-bh+1}" width="${bw-2}" height="2" fill="#A06030" opacity="0.35"/><line x1="${tx-bw/2+5}" y1="${ty-th/2-gap-bh+4}" x2="${tx+bw/2-5}" y2="${ty-th/2-gap-bh+4}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/><line x1="${tx-bw/2+5}" y1="${ty-th/2-gap-bh+7}" x2="${tx+bw/2-5}" y2="${ty-th/2-gap-bh+7}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/><rect x="${tx-tw/2}" y="${ty-th/2}" width="${tw}" height="${th}" rx="1" fill="#C8904A" stroke="#2A0C04" stroke-width="1.5"/><rect x="${tx-tw/2+1}" y="${ty-th/2+1}" width="${tw-2}" height="3" fill="#E8C070" opacity="0.3"/><line x1="${tx-tw/2+5}" y1="${ty-5}" x2="${tx+tw/2-5}" y2="${ty-5}" stroke="#D4A458" stroke-width="0.9" opacity="0.55"/><line x1="${tx-tw/2+5}" y1="${ty-1}" x2="${tx+tw/2-5}" y2="${ty-1}" stroke="#D4A458" stroke-width="0.9" opacity="0.55"/><line x1="${tx-tw/2+5}" y1="${ty+4}" x2="${tx+tw/2-5}" y2="${ty+4}" stroke="#D4A458" stroke-width="0.9" opacity="0.55"/><ellipse cx="${tx+18}" cy="${ty-3}" rx="4" ry="2.5" fill="none" stroke="#9A6838" stroke-width="1" opacity="0.5"/><circle cx="${tx-tw/2+5}" cy="${ty-th/2+4}" r="3" fill="#1A0804" opacity="0.7"/><circle cx="${tx+tw/2-5}" cy="${ty-th/2+4}" r="3" fill="#1A0804" opacity="0.7"/><circle cx="${tx-tw/2+5}" cy="${ty+th/2-4}" r="3" fill="#1A0804" opacity="0.7"/><circle cx="${tx+tw/2-5}" cy="${ty+th/2-4}" r="3" fill="#1A0804" opacity="0.7"/><rect x="${tx-bw/2}" y="${ty+th/2+gap}" width="${bw}" height="${bh}" rx="1" fill="#7A4020" stroke="#2A0C04" stroke-width="1.5"/><rect x="${tx-bw/2+1}" y="${ty+th/2+gap+1}" width="${bw-2}" height="2" fill="#A06030" opacity="0.35"/><line x1="${tx-bw/2+5}" y1="${ty+th/2+gap+4}" x2="${tx+bw/2-5}" y2="${ty+th/2+gap+4}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/><line x1="${tx-bw/2+5}" y1="${ty+th/2+gap+7}" x2="${tx+bw/2-5}" y2="${ty+th/2+gap+7}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/>`;
+    };
+    return floor + wall + mkTable(cx, cy-52) + mkTable(cx, cy+52);
+})();
+
 // Build top-down battle-map style patio SVG with shade overlay
 function buildPatioSVG(patioLat, patioLng, buildings, sunPos, wx = {}) {
-    const W = 248, H = 200;
-    const PX = 8, PY = 8;
-    const PW = W - PX*2, PH = H - PY*2;
-    const cx = PX + PW/2, cy = PY + PH/2;
+    const W=_SVG_W, H=_SVG_H, PX=_SVG_PX, PY=_SVG_PY, PW=_SVG_PW, PH=_SVG_PH;
+    const cx=_SVG_CX, cy=_SVG_CY;
 
     const isNight   = sunPos.altitude <= 0.01;
     const sunAzDeg  = ((sunPos.azimuth * 180 / Math.PI) + 180 + 360) % 360;
@@ -1069,85 +1155,15 @@ function buildPatioSVG(patioLat, patioLng, buildings, sunPos, wx = {}) {
             totalBlockedArc += Math.min(((arc.maxAz - arc.minAz + 360) % 360), 90);
     });
 
-    const shadeFrac   = isNight ? 0.88 : Math.min(0.95, totalBlockedArc / 90);
-    const shadeFromAz = (sunAzDeg + 180) % 360;
-    const sd          = shadeFromAz;
+    const shadeFrac = isNight ? 0.88 : Math.min(0.95, totalBlockedArc / 90);
+    const sd = (sunAzDeg + 180) % 360;
     let x1g, y1g, x2g, y2g;
     if      (sd >= 315 || sd < 45)  { x1g=0; y1g=0; x2g=0; y2g=1; }
     else if (sd >= 45  && sd < 135) { x1g=1; y1g=0; x2g=0; y2g=0; }
     else if (sd >= 135 && sd < 225) { x1g=0; y1g=1; x2g=0; y2g=0; }
     else                            { x1g=0; y1g=0; x2g=1; y2g=0; }
 
-    // ── FLOOR: alternating wood planks ───────────────────────────────────────
-    const plankH  = 14;
-    const pColors = ['#C08840','#B07830','#C49048','#AA7028','#BC8438'];
-    let floor = '';
-    for (let i = 0, y = PY; y < PY + PH; y += plankH, i++) {
-        const col = pColors[i % pColors.length];
-        const y0 = y, y1 = Math.min(y + plankH, PY + PH);
-        floor += `<rect x="${PX}" y="${y0}" width="${PW}" height="${y1-y0}" fill="${col}"/>`;
-        // grain lines
-        const gx1 = PX + 6 + (i*37)%40, gx2 = gx1 + 30 + (i*19)%60;
-        floor += `<line x1="${gx1}" y1="${y0+5}" x2="${Math.min(gx2, PX+PW-4)}" y2="${y0+5}" stroke="#D4A060" stroke-width="0.7" opacity="0.4"/>`;
-        // knot every few planks
-        if (i % 4 === 1) {
-            const kx = PX + 20 + (i*53)%120;
-            floor += `<ellipse cx="${kx}" cy="${y0+7}" rx="4" ry="2.5" fill="none" stroke="#8B5820" stroke-width="0.9" opacity="0.45"/>`;
-        }
-        // plank divider
-        if (y > PY) floor += `<line x1="${PX}" y1="${y0}" x2="${PX+PW}" y2="${y0}" stroke="#7A5020" stroke-width="0.8" opacity="0.5"/>`;
-    }
-    // vertical board joints (staggered)
-    for (let i = 0; i < 3; i++) {
-        const jx = PX + 55 + i*55;
-        const jy = PY + (i%2===0 ? 0 : plankH);
-        floor += `<line x1="${jx}" y1="${jy}" x2="${jx}" y2="${PY+PH}" stroke="#7A5020" stroke-width="0.7" opacity="0.35"/>`;
-    }
-
-    // ── OUTER WALL / FENCE ────────────────────────────────────────────────────
-    const wall = `
-        <rect x="${PX}" y="${PY}" width="${PW}" height="6" fill="#8B6030" opacity="0.7"/>
-        <rect x="${PX}" y="${PY+PH-6}" width="${PW}" height="6" fill="#8B6030" opacity="0.7"/>
-        <rect x="${PX}" y="${PY}" width="6" height="${PH}" fill="#8B6030" opacity="0.7"/>
-        <rect x="${PX+PW-6}" y="${PY}" width="6" height="${PH}" fill="#8B6030" opacity="0.7"/>
-        <line x1="${PX+6}" y1="${PY+6}" x2="${PX+PW-6}" y2="${PY+6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/>
-        <line x1="${PX+6}" y1="${PY+PH-6}" x2="${PX+PW-6}" y2="${PY+PH-6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/>
-        <line x1="${PX+6}" y1="${PY+6}" x2="${PX+6}" y2="${PY+PH-6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/>
-        <line x1="${PX+PW-6}" y1="${PY+6}" x2="${PX+PW-6}" y2="${PY+PH-6}" stroke="#5A3810" stroke-width="0.8" opacity="0.6"/>`;
-
-    // ── PICNIC TABLE ──────────────────────────────────────────────────────────
-    const table = (tx, ty) => {
-        const tw=120, th=38, bw=128, bh=10, gap=4;
-        return `
-        <rect x="${tx-bw/2+3}" y="${ty-th/2-gap-bh+3}" width="${bw}" height="${th+2*(gap+bh)}" rx="2" fill="#0A0500" opacity="0.22"/>
-        <rect x="${tx-bw/2}" y="${ty-th/2-gap-bh}" width="${bw}" height="${bh}" rx="1" fill="#7A4020" stroke="#2A0C04" stroke-width="1.5"/>
-        <rect x="${tx-bw/2+1}" y="${ty-th/2-gap-bh+1}" width="${bw-2}" height="2" fill="#A06030" opacity="0.35"/>
-        <line x1="${tx-bw/2+5}" y1="${ty-th/2-gap-bh+4}" x2="${tx+bw/2-5}" y2="${ty-th/2-gap-bh+4}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/>
-        <line x1="${tx-bw/2+5}" y1="${ty-th/2-gap-bh+7}" x2="${tx+bw/2-5}" y2="${ty-th/2-gap-bh+7}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/>
-        <rect x="${tx-tw/2}" y="${ty-th/2}" width="${tw}" height="${th}" rx="1" fill="#C8904A" stroke="#2A0C04" stroke-width="1.5"/>
-        <rect x="${tx-tw/2+1}" y="${ty-th/2+1}" width="${tw-2}" height="3" fill="#E8C070" opacity="0.3"/>
-        <line x1="${tx-tw/2+5}" y1="${ty-5}" x2="${tx+tw/2-5}" y2="${ty-5}" stroke="#D4A458" stroke-width="0.9" opacity="0.55"/>
-        <line x1="${tx-tw/2+5}" y1="${ty-1}" x2="${tx+tw/2-5}" y2="${ty-1}" stroke="#D4A458" stroke-width="0.9" opacity="0.55"/>
-        <line x1="${tx-tw/2+5}" y1="${ty+4}" x2="${tx+tw/2-5}" y2="${ty+4}" stroke="#D4A458" stroke-width="0.9" opacity="0.55"/>
-        <ellipse cx="${tx+18}" cy="${ty-3}" rx="4" ry="2.5" fill="none" stroke="#9A6838" stroke-width="1" opacity="0.5"/>
-        <circle cx="${tx-tw/2+5}" cy="${ty-th/2+4}" r="3" fill="#1A0804" opacity="0.7"/>
-        <circle cx="${tx+tw/2-5}" cy="${ty-th/2+4}" r="3" fill="#1A0804" opacity="0.7"/>
-        <circle cx="${tx-tw/2+5}" cy="${ty+th/2-4}" r="3" fill="#1A0804" opacity="0.7"/>
-        <circle cx="${tx+tw/2-5}" cy="${ty+th/2-4}" r="3" fill="#1A0804" opacity="0.7"/>
-        <rect x="${tx-bw/2}" y="${ty+th/2+gap}" width="${bw}" height="${bh}" rx="1" fill="#7A4020" stroke="#2A0C04" stroke-width="1.5"/>
-        <rect x="${tx-bw/2+1}" y="${ty+th/2+gap+1}" width="${bw-2}" height="2" fill="#A06030" opacity="0.35"/>
-        <line x1="${tx-bw/2+5}" y1="${ty+th/2+gap+4}" x2="${tx+bw/2-5}" y2="${ty+th/2+gap+4}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/>
-        <line x1="${tx-bw/2+5}" y1="${ty+th/2+gap+7}" x2="${tx+bw/2-5}" y2="${ty+th/2+gap+7}" stroke="#9A5428" stroke-width="0.9" opacity="0.6"/>`;
-    };
-
-    // ── BARREL ────────────────────────────────────────────────────────────────
-    const barrel = (bx, by) => `
-        <circle cx="${bx}" cy="${by}" r="9" fill="#5A2E10" stroke="#1A0804" stroke-width="1.5"/>
-        <circle cx="${bx}" cy="${by}" r="6" fill="none" stroke="#7A4820" stroke-width="1.2" opacity="0.7"/>
-        <line x1="${bx-9}" y1="${by}" x2="${bx+9}" y2="${by}" stroke="#1A0804" stroke-width="1.2" opacity="0.6"/>
-        <circle cx="${bx}" cy="${by}" r="2" fill="#3A1808" opacity="0.8"/>`;
-
-    const furniture = table(cx, cy-52) + table(cx, cy+52);
+    const furniture = _SVG_STATIC;
 
     // ── SHADE OVERLAY ─────────────────────────────────────────────────────────
     // Cloud cover dims/suppresses the directional building shade
@@ -1199,8 +1215,6 @@ function buildPatioSVG(patioLat, patioLng, buildings, sunPos, wx = {}) {
             ${weatherDefs}
         </defs>
         <g clip-path="url(#outerClip)">
-            ${floor}
-            ${wall}
             ${furniture}
             ${shadeRect}
             ${weatherLayer}
@@ -1293,3 +1307,4 @@ async function analyzeShade(patio) {
 </script>
 </body>
 </html>
+
