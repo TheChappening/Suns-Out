@@ -484,6 +484,7 @@
                 grid-template-columns: 1fr auto;
                 grid-template-rows: auto auto;
                 column-gap: 14px;
+                row-gap: 2px;
                 align-items: center;
                 width: 100%;
             }
@@ -494,13 +495,15 @@
                 grid-column: 1;
                 grid-row: 1;
                 font-size: 26px;
+                text-align: center;
             }
             .logo-tagline {
                 display: block;
                 grid-column: 1;
                 grid-row: 2;
                 font-size: 15px;
-                padding-top: 1px;
+                padding-top: 0;
+                text-align: center;
             }
             .logo-sub {
                 display: flex;
@@ -572,7 +575,7 @@
     <div id="map-updating" class="loading-box" style="display:none">
         <div class="loading-stripe"></div>
         <div class="loading-body">
-            <div class="loading-text">Finding bars near you…</div>
+            <div class="loading-text">Finding patios near you…</div>
             <div class="loading-dots"><span></span><span></span><span></span></div>
         </div>
     </div>
