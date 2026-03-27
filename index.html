@@ -493,6 +493,8 @@
 <div class="header-stripe"></div>
 
 <div id="map">
+    <svg id="leader-svg"></svg>
+    <div id="label-layer"></div>
     <div id="map-loading">
         <div class="map-loading-stripe"></div>
         <div class="map-loading-body">
@@ -687,14 +689,10 @@ const leafletMarkers = {};
 let activePatio = null;
 
 function smallIcon(patio) {
-    const info = getSunInfo(patio.lat, patio.lng, patio.facing);
+    const info  = getSunInfo(patio.lat, patio.lng, patio.facing);
     const isDay = SunCalc.getPosition(getSimTime(), patio.lat, patio.lng).altitude > 0.01;
-    const html = `
-        <div class="marker-badge">
-            <span class="badge-icon">${conditionIcon(info.score, isDay)}</span>
-            ${patio.name}
-        </div>`;
-    return L.divIcon({ html, className: 'patio-icon-wrapper', iconSize: [0,0], iconAnchor: [0,0] });
+    const html  = `<div class="patio-dot">${conditionIcon(info.score, isDay)}</div>`;
+    return L.divIcon({ html, className: 'patio-icon-wrapper', iconSize: [26,26], iconAnchor: [13,13] });
 }
 
 function expandedIcon(patio) {
@@ -732,7 +730,10 @@ function closeCard(e) {
     if (e) e.stopPropagation();
     if (!activePatio) return;
     leafletMarkers[activePatio.name].setIcon(smallIcon(activePatio));
+    const badge = getBadgeEl(activePatio.name);
+    if (badge) badge.style.display = '';
     activePatio = null;
+    renderLabels();
 }
 
 function addMarkers() {
@@ -742,12 +743,15 @@ function addMarkers() {
             .on('click', () => {
                 if (activePatio && activePatio.name !== patio.name) closeCard();
                 activePatio = patio;
+                const badge = getBadgeEl(patio.name);
+                if (badge) badge.style.display = 'none';
                 map.panTo([patio.lat, patio.lng], { animate: true });
                 leafletMarkers[patio.name].setIcon(expandedIcon(patio));
                 setTimeout(() => analyzeShade(patio), 50);
             });
         leafletMarkers[patio.name] = m;
     });
+    createLabelLayer();
 }
 
 // ── LOCATION + DATA INIT ──────────────────────────────────────────────────────
@@ -809,6 +813,8 @@ function clearMarkers() {
     if (activePatio) activePatio = null;
     Object.values(leafletMarkers).forEach(m => map.removeLayer(m));
     Object.keys(leafletMarkers).forEach(k => delete leafletMarkers[k]);
+    document.getElementById('label-layer').innerHTML = '';
+    document.getElementById('leader-svg').innerHTML  = '';
 }
 
 async function init() {
@@ -825,6 +831,108 @@ async function init() {
 }
 
 init();
+
+// ── LABEL PLACEMENT ───────────────────────────────────────────────────────────
+
+function getBadgeEl(name) {
+    return document.querySelector(`#label-layer [data-name="${name.replace(/"/g, '\\"')}"]`);
+}
+
+function createLabelLayer() {
+    const layer = document.getElementById('label-layer');
+    layer.innerHTML = '';
+    patios.forEach(patio => {
+        const info  = getSunInfo(patio.lat, patio.lng, patio.facing);
+        const isDay = SunCalc.getPosition(getSimTime(), patio.lat, patio.lng).altitude > 0.01;
+        const div   = document.createElement('div');
+        div.className    = 'patio-badge';
+        div.dataset.name = patio.name;
+        div.innerHTML    = `<span class="badge-icon">${conditionIcon(info.score, isDay)}</span><span>${patio.name}</span>`;
+        div.addEventListener('click', () => {
+            if (activePatio && activePatio.name !== patio.name) closeCard();
+            activePatio = patio;
+            div.style.display = 'none';
+            map.panTo([patio.lat, patio.lng], { animate: true });
+            leafletMarkers[patio.name].setIcon(expandedIcon(patio));
+            setTimeout(() => analyzeShade(patio), 50);
+        });
+        layer.appendChild(div);
+    });
+    requestAnimationFrame(renderLabels);
+}
+
+function renderLabels() {
+    const items = patios.map(patio => {
+        const el = getBadgeEl(patio.name);
+        if (!el || el.style.display === 'none') return null;
+        const pt = map.latLngToContainerPoint([patio.lat, patio.lng]);
+        const w  = el.offsetWidth  || 120;
+        const h  = el.offsetHeight || 28;
+        const startY = pt.y - h / 2 - 18;
+        return { patio, el, dotX: pt.x, dotY: pt.y, origX: pt.x, origY: startY, x: pt.x, y: startY, w, h };
+    }).filter(Boolean);
+
+    runRepulsion(items);
+
+    items.forEach(item => {
+        item.el.style.left = (item.x - item.w / 2) + 'px';
+        item.el.style.top  = (item.y - item.h / 2) + 'px';
+    });
+
+    updateLeaderLines(items);
+}
+
+function runRepulsion(items) {
+    const ITER   = 80;
+    const SPRING = 0.08;
+    const PAD    = 6;
+
+    for (let iter = 0; iter < ITER; iter++) {
+        for (let i = 0; i < items.length; i++) {
+            for (let j = i + 1; j < items.length; j++) {
+                const a = items[i], b = items[j];
+                const ox = (a.w / 2 + b.w / 2 + PAD) - Math.abs(a.x - b.x);
+                const oy = (a.h / 2 + b.h / 2 + PAD) - Math.abs(a.y - b.y);
+                if (ox > 0 && oy > 0) {
+                    const dx  = (a.x - b.x) || 0.1;
+                    const dy  = (a.y - b.y) || 0.1;
+                    const len = Math.sqrt(dx * dx + dy * dy);
+                    const push = Math.min(ox, oy) * 0.55;
+                    a.x += dx / len * push;
+                    a.y += dy / len * push;
+                    b.x -= dx / len * push;
+                    b.y -= dy / len * push;
+                }
+            }
+        }
+        for (const item of items) {
+            item.x += (item.origX - item.x) * SPRING;
+            item.y += (item.origY - item.y) * SPRING;
+        }
+    }
+}
+
+function updateLeaderLines(items) {
+    const svg = document.getElementById('leader-svg');
+    svg.innerHTML = '';
+    items.forEach(item => {
+        const dist = Math.hypot(item.x - item.dotX, item.y - item.dotY);
+        if (dist > 16) {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', item.dotX);
+            line.setAttribute('y1', item.dotY);
+            line.setAttribute('x2', item.x);
+            line.setAttribute('y2', item.y + item.h / 2);
+            line.setAttribute('stroke', '#C84830');
+            line.setAttribute('stroke-width', '1.5');
+            line.setAttribute('stroke-opacity', '0.4');
+            line.setAttribute('stroke-dasharray', '3,3');
+            svg.appendChild(line);
+        }
+    });
+}
+
+map.on('moveend zoomend', renderLabels);
 
 // ── CLOCK & HEADER STATUS ─────────────────────────────────────────────────────
 function getSkyLabel(now, pos, times) {
@@ -859,7 +967,19 @@ function updateHeader() {
 
 updateHeader();
 setInterval(updateHeader, 30 * 1000);
-setInterval(() => { if (activePatio) leafletMarkers[activePatio.name].setIcon(expandedIcon(activePatio)); }, 60 * 1000);
+setInterval(() => {
+    if (activePatio) leafletMarkers[activePatio.name].setIcon(expandedIcon(activePatio));
+    // Refresh dot icons and badge icons for time/weather changes
+    patios.forEach(patio => {
+        if (activePatio && activePatio.name === patio.name) return;
+        if (leafletMarkers[patio.name]) leafletMarkers[patio.name].setIcon(smallIcon(patio));
+        const badge = getBadgeEl(patio.name);
+        if (badge) badge.querySelector('.badge-icon').textContent = conditionIcon(
+            getSunInfo(patio.lat, patio.lng, patio.facing).score,
+            SunCalc.getPosition(getSimTime(), patio.lat, patio.lng).altitude > 0.01
+        );
+    });
+}, 60 * 1000);
 
 // ── PER-PATIO SHADE ENGINE ────────────────────────────────────────────────────
 
